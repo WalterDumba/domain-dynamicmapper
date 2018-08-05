@@ -66,4 +66,13 @@ public class Course {
     public void setNightlyStudents(LinkedList<Student> nightlyStudents) {
         this.nightlyStudents = nightlyStudents;
     }
+
+
+    public Set<Student> getStudentWorkers() {
+        return studentWorkers;
+    }
+
+    public void setStudentWorkers(Set<Student> studentWorkers) {
+        this.studentWorkers = studentWorkers;
+    }
 }

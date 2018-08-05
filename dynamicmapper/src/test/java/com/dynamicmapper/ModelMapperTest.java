@@ -1,17 +1,13 @@
 package com.dynamicmapper;
 
-import com.dynamicmapper.domain.Course;
-import com.dynamicmapper.domain.Student;
-import com.dynamicmapper.domain.StudentVO;
-import com.dynamicmapper.domain.Subject;
+import com.dynamicmapper.domain.*;
 import com.dynamicmapper.mapper.ModelMapper;
 import org.junit.Assert;
 import org.junit.Test;
 
-import javax.sound.sampled.Line;
-import java.util.*;
-
-import static com.dynamicmapper.mapper.ModelMapper.recursiveReflectiveDeepCopy;
+import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
 
 public class ModelMapperTest {
 
@@ -58,7 +54,31 @@ public class ModelMapperTest {
     }
 
 
-    private Student createStudent() {
+    @Test
+    public void testCyclicReferenceOnMappingAndPass(){
+
+
+        Person p1 = createPerson();
+        p1.setParent(p1);
+        PersonVO pvo = ModelMapper.map(p1,  PersonVO.class);
+        Assert.assertTrue(pvo.getParent()==pvo);
+    }
+
+
+
+    @Test
+    public void testMappingWithAgregationAndPass(){
+
+        Person p1 = createPerson();
+        p1.setParent(createPerson());
+        PersonVO pvo = ModelMapper.map(p1, PersonVO.class);
+        Assert.assertTrue(pvo.getParent()!=null);
+    }
+
+
+
+
+    private static Student createStudent() {
         Student s1 = new Student();
         s1.setEducationLevel("Bachelor");
         s1.setSubjects(new Subject[]{
@@ -69,6 +89,10 @@ public class ModelMapperTest {
         s1.setAge(20);
         s1.setName("John Doe");
         return s1;
+    }
+
+    private static Person createPerson(){
+        return new Person("Jane Doe", 27);
     }
 
 

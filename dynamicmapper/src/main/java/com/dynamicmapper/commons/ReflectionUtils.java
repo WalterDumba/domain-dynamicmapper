@@ -208,7 +208,7 @@ public final class ReflectionUtils {
      * @return
      */
     public static boolean objectClassIsAwellKnownImmutableClassFromJDK(Object obj) {
-        return classIsAWellKnownImmutableClassFromJDK( obj.getClass() );
+        return obj!= null && classIsAWellKnownImmutableClassFromJDK( obj.getClass() );
     }
 
     /**

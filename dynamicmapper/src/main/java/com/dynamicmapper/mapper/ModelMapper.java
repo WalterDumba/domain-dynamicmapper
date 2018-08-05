@@ -4,6 +4,7 @@ import com.dynamicmapper.commons.CollectionFactory;
 import com.dynamicmapper.commons.LRUCache;
 import com.dynamicmapper.commons.Mappable;
 import com.dynamicmapper.commons.ReflectionUtils;
+import com.dynamicmapper.exceptions.DeepCopyTypesMissMatchException;
 
 import java.lang.reflect.*;
 import java.util.*;
@@ -33,7 +34,7 @@ public class ModelMapper{
 
 
 
-    private static LRUCache<Class<?>, List<Method>> cachedMethodAccessorsLRUCache; //Might be a Map<Class, Tree> to boost the search
+    private static LRUCache<Class<?>, List<Method>> cachedMethodAccessorsLRUCache;
     private static int CACHE_CAPACITY = 100;
 
 
@@ -67,7 +68,7 @@ public class ModelMapper{
         Collection<Field> dstAnnotatedFields = ReflectionUtils.getDeclaredFieldsAnnotatedWithTraversingClazzHierarchy(dstClazz, Mappable.class, Object.class );
         List<Method> propertyAccessors       = cachedMethodAccessorsLRUCache.get( sourceObj.getClass() );
 
-        //Doesn't exist on cache
+        //DOESN'T EXIST ON CACHE
         if( propertyAccessors == null ){
             Collection<String> propertyAccessorNameList   = ReflectionUtils.collectPropertyAccessorNamesFromMetaData( dstAnnotatedFields );
             propertyAccessors = ReflectionUtils.getMethodsByNameCriteria( sourceObj.getClass(), propertyAccessorNameList );
@@ -82,7 +83,15 @@ public class ModelMapper{
 
             Method srcMethodGetter = lookupPropertyResolver( dstField.getAnnotation( Mappable.class ).methodName(), sourceObj.getClass());
             Object value = invokeReflective( sourceObj, srcMethodGetter );
-            Object clone = recursiveReflectiveDeepCopy( value );
+            Object clone;
+
+            if(value!= null && dstField.getType().isPrimitive() || value!= null && value.getClass()== dstField.getType()){
+                clone = recursiveReflectiveDeepCopy( value, dstField.getType());
+            }
+            else{
+                //WE HAVE A SUB MAPPING
+                clone = map(value, dstField.getType());
+            }
             setField( dstField, dstObject, clone );
         }
         return dstObject;
@@ -121,7 +130,7 @@ public class ModelMapper{
      * @return
      */
     public static <R> R deepCopyOf(Object obj){
-        return recursiveReflectiveDeepCopy(obj);
+        return (R) recursiveReflectiveDeepCopy(obj, obj.getClass());
     }
 
 
@@ -129,6 +138,8 @@ public class ModelMapper{
 
 
     /**
+     *
+     * Set the field value on underlyingObject
      *
      * @param field
      * @param underlyingObject
@@ -143,6 +154,23 @@ public class ModelMapper{
         } catch (IllegalAccessException e) {
             throw new RuntimeException(String.format("Error trying set field value reflective on object %s with value %s", underlyingObject, value));
         }
+    }
+
+    /**
+     * Get the field value of underlyingObject
+     *
+     * @param field
+     * @param underlyingObject
+     * @return
+     */
+    private static Object getFieldValue(Field field, Object underlyingObject){
+        Object value;
+        try {
+            value = field.get(underlyingObject);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(String.format("Error trying get field value reflective on object %s",underlyingObject));
+        }
+        return value;
     }
 
     /**
@@ -205,38 +233,46 @@ public class ModelMapper{
 
 
     /**
-     * Deep copy the object given in parameters
-     * if at some point come across with a property of immutable class from JDK the reference only will be copied
-     * this copy doesn't recompute objects fields during the process, a cache is used to lookup the fields
-     * so the performance might increase meaningfully
+     *  Deep copy the object given in parameters
+     *  if at some point come across with a property of immutable class from JDK the reference only will be copied
+     *  this copy doesn't recompute objects fields during the process, a cache is used to lookup the fields
+     *  so the performance might increase meaningfully
      *
-     * @param obj
-     * @return a copy of this object
+     *
+     * @param srcObj
+     * @param dstClazz
+     * @param <S>
+     * @param <D>
+     * @return
+     * @throws DeepCopyTypesMissMatchException
      */
-    private static <R extends Object>R recursiveReflectiveDeepCopy(Object obj){
+    public static <S,D> D recursiveReflectiveDeepCopy(S srcObj, Class<D> dstClazz ) throws DeepCopyTypesMissMatchException {
 
-        try{
-            if( objectClassIsAwellKnownImmutableClassFromJDK( obj ) ){
-                return (R) obj;
+
+            if(srcObj == null){
+                return null;
+            }
+            if( objectClassIsAwellKnownImmutableClassFromJDK( srcObj ) ){
+                return (D) srcObj;
             }
             Object clone;
-            Class objClazz = obj.getClass();
+            Class objClazz = dstClazz;
 
             //ARRAY TYPES
-            if( obj.getClass().isArray() ){
-                clone = Array.newInstance( obj.getClass().getComponentType(), Array.getLength(obj) );
-                for(int i=0; i< Array.getLength(obj); ++i){
-                    Object arrElement = Array.get(obj, i);
-                    Object arrElementClone = recursiveReflectiveDeepCopy( arrElement );
+            if( srcObj.getClass().isArray() ){
+                clone = Array.newInstance( srcObj.getClass().getComponentType(), Array.getLength(srcObj) );
+                for(int i=0; i< Array.getLength(srcObj); ++i){
+                    Object arrElement = Array.get(srcObj, i);
+                    Object arrElementClone = recursiveReflectiveDeepCopy( arrElement, srcObj.getClass().getComponentType() );
                     Array.set(clone, i, arrElementClone);
                 }
             }
             //COLLECTION TYPES
-            else if(Collection.class.isAssignableFrom( obj.getClass() )){
-                Collection<?> collection = (Collection<?>) obj;
-                Collection temp = (Collection<?>) CollectionFactory.newInstanceOf( obj.getClass().getCanonicalName() );
+            else if(Collection.class.isAssignableFrom( srcObj.getClass() )){
+                Collection<?> collection = (Collection<?>) srcObj;
+                Collection temp = (Collection<?>) CollectionFactory.newInstanceOf( srcObj.getClass().getCanonicalName() );
                 for(Object curr: collection){
-                    Object currCloned = recursiveReflectiveDeepCopy( curr );
+                    Object currCloned = recursiveReflectiveDeepCopy( curr, curr.getClass() );
                     temp.add(currCloned);
                 }
                 clone = temp;
@@ -244,30 +280,29 @@ public class ModelMapper{
             }
 
             else {
-                clone = newInstanceOf( objClazz );
+                clone = newInstanceOf( dstClazz );
             }
-            for (Field field : ReflectionUtils.getClazzFieldsAlongTheHierarchy( objClazz )) {
-                field.setAccessible( true );
-                if(field.get(obj) == null || Modifier.isFinal(field.getModifiers()) ){
-                    continue;
-                }
-                //WE DON'T WANT DEEP COPYING IMMUTABLE OBJECTS
-                if( fieldTypeIsAwellKnownImmutableClazzFromJDK( field ) ){
-                    field.set(clone, field.get(obj));
-                }else{
-                    Object childObj = field.get(obj);
-                    if(childObj == obj){
-                        field.set(clone, clone);
+            //Case: We want assure we are copying objects from the same class so...
+            if(srcObj.getClass() == dstClazz){
+                for (Field field : ReflectionUtils.getClazzFieldsAlongTheHierarchy( objClazz )) {
+                    field.setAccessible( true );
+                    if( getFieldValue(field, srcObj) == null || Modifier.isFinal(field.getModifiers()) ){
+                        continue;
+                    }
+                    //WE DON'T WANT DEEP COPYING IMMUTABLE OBJECTS
+                    if( fieldTypeIsAwellKnownImmutableClazzFromJDK( field ) ){
+                        setField(field, clone,  getFieldValue(field, srcObj));
                     }else{
-                        field.set(clone, recursiveReflectiveDeepCopy( childObj ));
+                        Object childObj = getFieldValue(field, srcObj);
+                        if(childObj == srcObj){
+                            setField(field, clone, clone);
+                        }else{
+                            setField(field, clone, recursiveReflectiveDeepCopy(childObj, field.getType()));
+                        }
                     }
                 }
             }
-            return (R) clone;
-        }catch(Exception e){
-            //TODO:Use sl4j to log
-            return null;
-        }
+            return (D) clone;
     }
 
 }

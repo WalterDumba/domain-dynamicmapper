@@ -35,6 +35,7 @@ public class ModelMapper{
 
 
     private static LRUCache<Class<?>, List<Method>> cachedMethodAccessorsLRUCache;
+    private static Map<Integer, Object> alreadyMappedObjects;
     private static int CACHE_CAPACITY = 100;
 
 
@@ -47,19 +48,36 @@ public class ModelMapper{
 
     static {
         cachedMethodAccessorsLRUCache = new LRUCache<>(CACHE_CAPACITY);
+        alreadyMappedObjects          = new HashMap<>();
     }
 
 
 
     /**
-     * Perform a deep copy from source object to a dstClazz object
-     * @param sourceObj
-     * @param dstClazz
-     * @param <S>
-     * @param <D>
-     * @return
+     * Map an object to another object from different class
+     *
+     * @see #map(Object, Class, Map)
+     *
      */
     public static <S, D> D map(S sourceObj, Class<D> dstClazz) {
+
+        D mappedObject = map(sourceObj, dstClazz, alreadyMappedObjects);
+        alreadyMappedObjects.clear();
+        return mappedObject;
+    }
+
+
+    /**
+     * Map an object to another object from different class
+     *
+     * @param sourceObj source object which we want to map to
+     * @param dstClazz  class of destiny object
+     * @param alreadyMappedObjects a variable that holds the tracking during the mapping to prevent infinite loop in mappings
+     * @param <S>
+     * @param <D>
+     * @return a mapped object from Class<D>
+     */
+    private static <S, D> D map(S sourceObj, Class<D> dstClazz, Map<Integer, Object> alreadyMappedObjects){
 
         if(sourceObj == null || dstClazz == null){
             return null;
@@ -83,19 +101,25 @@ public class ModelMapper{
 
             Method srcMethodGetter = lookupPropertyResolver( dstField.getAnnotation( Mappable.class ).methodName(), sourceObj.getClass());
             Object value = invokeReflective( sourceObj, srcMethodGetter );
-            Object clone;
 
-            if(value!= null && dstField.getType().isPrimitive() || value!= null && value.getClass()== dstField.getType()){
+            Object clone = null;
+            if( alreadyMappedObjects.get( Objects.hashCode(value) )!= null ){
+                continue;
+            }
+            if( sourceAndDestinyArePrimitiveTypesOrFromSameClazz(dstField, value) ){
                 clone = recursiveReflectiveDeepCopy( value, dstField.getType());
             }
-            else{
-                //WE HAVE A SUB MAPPING
+            else if( null != value ){
+                alreadyMappedObjects.put(value.hashCode(), value);
                 clone = map(value, dstField.getType());
             }
             setField( dstField, dstObject, clone );
         }
         return dstObject;
     }
+
+
+
 
 
     /**
@@ -246,7 +270,7 @@ public class ModelMapper{
      * @return
      * @throws DeepCopyTypesMissMatchException
      */
-    public static <S,D> D recursiveReflectiveDeepCopy(S srcObj, Class<D> dstClazz ) throws DeepCopyTypesMissMatchException {
+    private static <S,D> D recursiveReflectiveDeepCopy(S srcObj, Class<D> dstClazz ) throws DeepCopyTypesMissMatchException {
 
 
             if(srcObj == null){
@@ -303,6 +327,17 @@ public class ModelMapper{
                 }
             }
             return (D) clone;
+    }
+
+
+    /**
+     * Test if value can be assigned to the following field treating primitive type as special case
+     * @param dstField
+     * @param value
+     * @return
+     */
+    private static boolean sourceAndDestinyArePrimitiveTypesOrFromSameClazz(Field dstField, Object value) {
+        return value!= null && value.getClass()== dstField.getType() || dstField.getType().isPrimitive();
     }
 
 }

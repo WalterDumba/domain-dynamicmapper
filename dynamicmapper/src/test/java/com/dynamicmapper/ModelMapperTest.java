@@ -61,7 +61,7 @@ public class ModelMapperTest {
         Person p1 = createPerson();
         p1.setParent(p1);
         PersonVO pvo = ModelMapper.map(p1,  PersonVO.class);
-        Assert.assertTrue(pvo.getParent()==pvo);
+        Assert.assertTrue(pvo.getParent()!=null && pvo.getParent().getParent()==null);
     }
 
 

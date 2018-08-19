@@ -82,69 +82,24 @@ public final class ReflectionUtils {
     /**
      *
      * @param clazz
-     * @param annotationClazz
-     * @param <T>
-     * @return
-     *
-     * TODO: Replace Arrays.asList using cached fields
-     */
-    public static <T> Collection<Field> getDeclaredFieldsAnnotatedWith(Class<T> clazz, Class<Mappable> annotationClazz) {
-
-        Criteria<Field> annotatedFieldCriteria = new FieldAnnotationCriteria(annotationClazz);
-        Collection<Field> fieldsForGivenClazz = getInstance().cachedFieldsLRUCache.get( clazz );
-        if(fieldsForGivenClazz == null){
-            //TODO: Be careful about this optimization
-            fieldsForGivenClazz = Arrays.asList( clazz.getDeclaredFields() );
-        }
-        return annotatedFieldCriteria.meetCriteria( fieldsForGivenClazz );
-    }
-
-    /**
-     *
-     * @param clazz
      * @param annotationToScan
-     * @param depth
      * @param <T>
      * @return
-     * TODO: call getClazzFieldsAlongTheHierarchy here instead and filter by annotationType
      */
-    public static <T>Collection<Field> getDeclaredFieldsAnnotatedWithTraversingClazzHierarchy(Class<?> clazz, Class<Mappable>annotationToScan, Class<T>depth){
-
-        Collection<Field> collectedFields= new ArrayList<>();
-        Collection<Field>clazzFields;
-        do{
-            clazzFields = getDeclaredFieldsAnnotatedWith( clazz, annotationToScan );
-            collectedFields.addAll( clazzFields );
-            clazz = clazz.getSuperclass();
-        }while ( clazz!=null && clazz!=depth );
-        return collectedFields;
+    public static <T>Collection<Field> getDeclaredFieldsAnnotatedWithTraversingClazzHierarchy(Class<?> clazz, Class<? extends Annotation>annotationToScan){
+        return getDeclaredFieldsAlongTheHierarchyOptionallyFilteringByAnnotationTypes(clazz, annotationToScan);
     }
 
     /**
      *
      * @param clazz
-     * @param <T>
+     *
+     * @see #getDeclaredFieldsAlongTheHierarchyOptionallyFilteringByAnnotationTypes(Class, Class[])
+     *
      * @return
      */
-    public static <T>Collection<Field> getClazzFieldsAlongTheHierarchy(Class<?>clazz){
-
-        if(clazz == null){
-            return Collections.emptyList();
-        }
-
-        Collection<Field> collectedFields = getInstance().cachedFieldsLRUCache.get( clazz );
-        if( collectedFields == null){
-            collectedFields = new ArrayList<>();
-            Field[] clazzFields;
-            do{
-                clazzFields = clazz.getDeclaredFields();
-                collectedFields.addAll(Arrays.asList(clazzFields));
-                clazz = clazz.getSuperclass();
-            }while( clazz!=null && clazz!= Object.class );
-
-            getInstance().cachedFieldsLRUCache.put( clazz, collectedFields);
-        }
-        return collectedFields;
+    public static Collection<Field> getClazzFieldsAlongTheHierarchy(Class<?>clazz){
+        return getDeclaredFieldsAlongTheHierarchyOptionallyFilteringByAnnotationTypes(clazz, null);
     }
 
     /**
@@ -167,11 +122,69 @@ public final class ReflectionUtils {
         return (List<Method>) clazzGettersForAnnotatedFields;
     }
 
+    /**
+     * Check if object is a typical immutable class form JDK
+     *
+     * @see #classIsAWellKnownImmutableClassFromJDK(Class)
+     *
+     * @param obj
+     * @return
+     */
+    public static boolean objectClassIsAwellKnownImmutableClassFromJDK(Object obj) {
+        return obj!= null && classIsAWellKnownImmutableClassFromJDK( obj.getClass() );
+    }
+
+
+    /**
+     * Check if given field type is classic Immutable from JDK e.g: String, Number and Boolean
+     *
+     * @See #classIsAWellKnownImmutableClassFromJDK(Class)
+     *
+     * @param field
+     * @return
+     */
+    public static boolean fieldTypeIsAwellKnownImmutableClazzFromJDK(Field field) {
+        return classIsAWellKnownImmutableClassFromJDK( field.getType() );
+    }
 
 
 
-    /** PRIVATE PARTS **/
 
+    /**======================================== PRIVATE PARTS ======================================================= **/
+
+    /**
+     *
+     * @param clazz
+     * @param annotationsToScan
+     * @return
+     */
+    private static Collection<Field> getDeclaredFieldsAlongTheHierarchyOptionallyFilteringByAnnotationTypes(Class<?>clazz, Class<?extends Annotation>...annotationsToScan){
+
+        if(clazz == null){
+            return Collections.emptyList();
+        }
+        Collection<Field> collectedFields = getInstance().cachedFieldsLRUCache.get( clazz );
+        boolean notAlreadyCached = collectedFields == null;
+        Class depth = Object.class;
+        if( notAlreadyCached ){
+            collectedFields = new ArrayList<>();
+            Field[] clazzFields;
+            do{
+                clazzFields = clazz.getDeclaredFields();
+                collectedFields.addAll(Arrays.asList(clazzFields));
+                clazz = clazz.getSuperclass();
+            }while( clazz!=null && clazz!= depth);
+
+            getInstance().cachedFieldsLRUCache.put( clazz, collectedFields);
+        }
+        //Check if caller want us to filter by annotations
+        if(annotationsToScan!=null && annotationsToScan.length > 0){
+            return new FieldAnnotationCriteria(annotationsToScan).meetCriteria(collectedFields);
+        }
+        else{
+            return collectedFields;
+        }
+    }
 
     /**
      * Walk into give class hierarchy and retrieve its declared methods as it go until reach
@@ -199,29 +212,12 @@ public final class ReflectionUtils {
         return collectedMethods;
     }
 
-
-
     /**
-     * Check if object is a typical immutable class form JDK e.g: String Number and Boolean
+     * Check if given clazz type is classic Immutable from JDK e.g: String, Number and Boolean
      *
-     * @param obj
-     * @return
+     * @param clazz such clazz we are testing
+     * @return true if a class is a PrimitiveType Wrapper, String, a Number or Boolean
      */
-    public static boolean objectClassIsAwellKnownImmutableClassFromJDK(Object obj) {
-        return obj!= null && classIsAWellKnownImmutableClassFromJDK( obj.getClass() );
-    }
-
-    /**
-     * Check if given field type is classic Immutable from JDK e.g: String, Number and Boolean
-     *
-     * @param field
-     * @return
-     */
-    public static boolean fieldTypeIsAwellKnownImmutableClazzFromJDK(Field field) {
-        return classIsAWellKnownImmutableClassFromJDK( field.getType() );
-    }
-
-
     private static boolean classIsAWellKnownImmutableClassFromJDK(Class clazz){
         return clazz.isPrimitive()
                 || String.class.equals(clazz)
@@ -229,25 +225,11 @@ public final class ReflectionUtils {
                 || Boolean.class.equals(clazz);
     }
 
-    /**
-     * @param fields
-     * @return
-     *
-     * TODO: Generalize, ReflectionUtils shouldn't worry about Annotation
-     *  that is passing through parameters
-     */
-    public static Collection<String> collectPropertyAccessorNamesFromMetaData(Collection<Field> fields) {
 
-        Collection<String>accessorNameList = new ArrayList<>();
-
-        for(Field currentField: fields){
-            accessorNameList.add( currentField.getAnnotation( Mappable.class ).methodName() );
-        }
-        return accessorNameList;
-    }
+    /**===================================== CRITERIA FILTERS ==================================================== **/
 
 
-    /** Abstract Filters **/
+
     static abstract class MethodDecoratorCriteria implements Criteria<Method>{
 
         private Criteria<Method> delegate;
@@ -260,6 +242,7 @@ public final class ReflectionUtils {
             return this.delegate.meetCriteria(items);
         }
     }
+
     static abstract class MethodCompoundCriteria implements Criteria<Method>{
 
         private Criteria<Method>[] criteriaChildren;
@@ -279,6 +262,7 @@ public final class ReflectionUtils {
     }
 
     /** Concret Filters **/
+
     static class MethodNamePatternCriteria implements Criteria<Method> {
 
         private Pattern methodPattern;

@@ -83,12 +83,12 @@ public class ModelMapper{
             return null;
         }
         //INTROSPECT DESTINY CLASS TO FIGURE OUT WHICH PROPERTY WILL BE MAPPED
-        Collection<Field> dstAnnotatedFields = ReflectionUtils.getDeclaredFieldsAnnotatedWithTraversingClazzHierarchy(dstClazz, Mappable.class, Object.class );
+        Collection<Field> dstAnnotatedFields = ReflectionUtils.getDeclaredFieldsAnnotatedWithTraversingClazzHierarchy(dstClazz, Mappable.class);
         List<Method> propertyAccessors       = cachedMethodAccessorsLRUCache.get( sourceObj.getClass() );
 
         //DOESN'T EXIST ON CACHE
         if( propertyAccessors == null ){
-            Collection<String> propertyAccessorNameList   = ReflectionUtils.collectPropertyAccessorNamesFromMetaData( dstAnnotatedFields );
+            Collection<String> propertyAccessorNameList   = collectPropertyAccessorNamesFromMetaData( dstAnnotatedFields );
             propertyAccessors = ReflectionUtils.getMethodsByNameCriteria( sourceObj.getClass(), propertyAccessorNameList );
 
             //SORT PROPERTIES TO BOOST THE PERFORMANCE ON LATER LOOKUP
@@ -109,8 +109,8 @@ public class ModelMapper{
             if( sourceAndDestinyArePrimitiveTypesOrFromSameClazz(dstField, value) ){
                 clone = recursiveReflectiveDeepCopy( value, dstField.getType());
             }
-            else if( null != value ){
-                alreadyMappedObjects.put(value.hashCode(), value);
+            else{
+                alreadyMappedObjects.put(Objects.hashCode(value), value);
                 clone = map(value, dstField.getType());
             }
             setField( dstField, dstObject, clone );
@@ -339,5 +339,23 @@ public class ModelMapper{
     private static boolean sourceAndDestinyArePrimitiveTypesOrFromSameClazz(Field dstField, Object value) {
         return value!= null && value.getClass()== dstField.getType() || dstField.getType().isPrimitive();
     }
+
+
+    /**
+     * @param fields
+     * @return
+     *
+     *  that is passing through parameters
+     */
+    private static Collection<String> collectPropertyAccessorNamesFromMetaData(Collection<Field> fields) {
+
+        Collection<String>accessorNameList = new ArrayList<>();
+
+        for(Field currentField: fields){
+            accessorNameList.add( currentField.getAnnotation( Mappable.class ).methodName() );
+        }
+        return accessorNameList;
+    }
+
 
 }

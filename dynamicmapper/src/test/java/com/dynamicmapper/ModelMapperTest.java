@@ -50,7 +50,7 @@ public class ModelMapperTest {
         List<StudentVO> studentListVO = null;
             studentListVO = ModelMapper.mapList(studentList, StudentVO.class);
 
-        Assert.assertTrue(studentListVO!= null);
+        Assert.assertTrue(studentListVO!= null && studentListVO.size()==2);
     }
 
 

@@ -7,7 +7,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /***
- * Annoation to be used on destination classes interested on Using ModelMapper
+ * Annotation to be used on destination classes interested on Using ModelMapper
  *
  * authored by: walter.dumba
  */

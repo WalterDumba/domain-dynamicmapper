@@ -58,6 +58,7 @@ public class ModelMapper{
      *
      * @see #map(Object, Class, Map)
      *
+     * FIXME: non thread safe code
      */
     public static <S, D> D map(S sourceObj, Class<D> dstClazz) {
 
@@ -106,7 +107,7 @@ public class ModelMapper{
             if( alreadyMappedObjects.get( Objects.hashCode(value) )!= null ){
                 continue;
             }
-            if( sourceAndDestinyArePrimitiveTypesOrFromSameClazz(dstField, value) ){
+            if( objectIsEligibleToBeClonedAndAssignedToField(dstField, value) ){
                 clone = recursiveReflectiveDeepCopy( value, dstField.getType());
             }
             else{
@@ -331,12 +332,12 @@ public class ModelMapper{
 
 
     /**
-     * Test if value can be assigned to the following field treating primitive type as special case
+     * Test if value is eligible to be assigned to the following field
      * @param dstField
      * @param value
      * @return
      */
-    private static boolean sourceAndDestinyArePrimitiveTypesOrFromSameClazz(Field dstField, Object value) {
+    private static boolean objectIsEligibleToBeClonedAndAssignedToField(Field dstField, Object value) {
         return value!= null && value.getClass()== dstField.getType() || dstField.getType().isPrimitive();
     }
 

@@ -35,7 +35,6 @@ public class ModelMapper{
 
 
     private static LRUCache<Class<?>, List<Method>> cachedMethodAccessorsLRUCache;
-    private static Map<Integer, Object> alreadyMappedObjects;
     private static int CACHE_CAPACITY = 100;
 
 
@@ -48,7 +47,6 @@ public class ModelMapper{
 
     static {
         cachedMethodAccessorsLRUCache = new LRUCache<>(CACHE_CAPACITY);
-        alreadyMappedObjects          = new HashMap<>();
     }
 
 
@@ -58,13 +56,11 @@ public class ModelMapper{
      *
      * @see #map(Object, Class, Map)
      *
-     * FIXME: non thread safe code
      */
     public static <S, D> D map(S sourceObj, Class<D> dstClazz) {
 
-        D mappedObject = map(sourceObj, dstClazz, alreadyMappedObjects);
-        alreadyMappedObjects.clear();
-        return mappedObject;
+        D dstObject = map( sourceObj, dstClazz, new HashMap<Integer, Object>() );
+        return dstObject;
     }
 
 
@@ -112,7 +108,7 @@ public class ModelMapper{
             }
             else{
                 alreadyMappedObjects.put(Objects.hashCode(value), value);
-                clone = map(value, dstField.getType());
+                clone = map(value, dstField.getType(), alreadyMappedObjects);
             }
             setField( dstField, dstObject, clone );
         }

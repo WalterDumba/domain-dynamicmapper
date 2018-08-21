@@ -2,16 +2,14 @@ package com.dynamicmapper.mapper;
 
 import com.dynamicmapper.commons.CollectionFactory;
 import com.dynamicmapper.commons.LRUCache;
-import com.dynamicmapper.commons.Mappable;
 import com.dynamicmapper.commons.ReflectionUtils;
 import com.dynamicmapper.exceptions.DeepCopyTypesMissMatchException;
+import com.dynamicmapper.mapper.policy.*;
 
 import java.lang.reflect.*;
 import java.util.*;
 
-import static com.dynamicmapper.commons.ReflectionUtils.fieldTypeIsAwellKnownImmutableClazzFromJDK;
-import static com.dynamicmapper.commons.ReflectionUtils.newInstanceOf;
-import static com.dynamicmapper.commons.ReflectionUtils.objectClassIsAwellKnownImmutableClassFromJDK;
+import static com.dynamicmapper.commons.ReflectionUtils.*;
 
 
 /**
@@ -33,22 +31,13 @@ public class ModelMapper{
 
 
 
-
+    @Deprecated
     private static LRUCache<Class<?>, List<Method>> cachedMethodAccessorsLRUCache;
-    private static int CACHE_CAPACITY = 100;
-
-
-    private static final Comparator<Method> COMPARE_METHOD_BY_NAME = new Comparator<Method>() {
-        @Override
-        public int compare(Method o1, Method o2) {
-            return o1.getName().compareTo(o2.getName());
-        }
-    };
+    private static final int CACHE_CAPACITY = 100;
 
     static {
         cachedMethodAccessorsLRUCache = new LRUCache<>(CACHE_CAPACITY);
     }
-
 
 
     /**
@@ -79,27 +68,15 @@ public class ModelMapper{
         if(sourceObj == null || dstClazz == null){
             return null;
         }
-        //INTROSPECT DESTINY CLASS TO FIGURE OUT WHICH PROPERTY WILL BE MAPPED
-        Collection<Field> dstAnnotatedFields = ReflectionUtils.getDeclaredFieldsAnnotatedWithTraversingClazzHierarchy(dstClazz, Mappable.class);
-        List<Method> propertyAccessors       = cachedMethodAccessorsLRUCache.get( sourceObj.getClass() );
-
-        //DOESN'T EXIST ON CACHE
-        if( propertyAccessors == null ){
-            Collection<String> propertyAccessorNameList   = collectPropertyAccessorNamesFromMetaData( dstAnnotatedFields );
-            propertyAccessors = ReflectionUtils.getMethodsByNameCriteria( sourceObj.getClass(), propertyAccessorNameList );
-
-            //SORT PROPERTIES TO BOOST THE PERFORMANCE ON LATER LOOKUP
-            Collections.sort( propertyAccessors, COMPARE_METHOD_BY_NAME );
-            cachedMethodAccessorsLRUCache.put( sourceObj.getClass(), propertyAccessors );
-        }
-
+        //INTROSPECT DESTINY CLASS FIELDS TO FIGURE OUT WHICH MAPPING STRATEGY WILL BE USED
+        Collection<Field> dstAnnotatedFields = ReflectionUtils.getClazzFieldsAlongTheHierarchy( dstClazz );
         D dstObject = newInstanceOf( dstClazz );
         for(Field dstField: dstAnnotatedFields){
 
-            Method srcMethodGetter = lookupPropertyResolver( dstField.getAnnotation( Mappable.class ).methodName(), sourceObj.getClass());
-            Object value = invokeReflective( sourceObj, srcMethodGetter );
-
-            Object clone = null;
+            SystemLegacyMappingStrategy mapping = MappingManager.discovery( dstField );
+            mapping.setProvider( sourceObj );
+            Object value = mapping.resolve();
+            Object clone;
             if( alreadyMappedObjects.get( Objects.hashCode(value) )!= null ){
                 continue;
             }
@@ -114,9 +91,6 @@ public class ModelMapper{
         }
         return dstObject;
     }
-
-
-
 
 
     /**
@@ -194,63 +168,6 @@ public class ModelMapper{
         return value;
     }
 
-    /**
-     *
-     * @param underlyingObject
-     * @param target
-     * @return
-     */
-    private static Object invokeReflective(Object underlyingObject, Method target){
-        try {
-            return target.invoke(underlyingObject);
-        } catch (IllegalAccessException | InvocationTargetException e) {
-            throw new RuntimeException( String.format("Error trying invoke method %s reflective", target ));
-        }
-    }
-
-    /**
-     * Lookup a method from a given targetClazz
-     *
-     * @param propertyAccessor
-     * @param targetClazz
-     * @return
-     */
-    private static Method lookupPropertyResolver(String propertyAccessor, Class<?> targetClazz) {
-
-        List<Method> methodList = cachedMethodAccessorsLRUCache.get(targetClazz);
-        Method found = binarySearch(propertyAccessor, methodList, 0, methodList.size()-1);
-        return found;
-    }
-
-    /**
-     * Perform a binary search on given methodList
-     * @param methodName - Method which will searched for
-     * @param methodList - The target List holding methods which will be "binary searched"
-     * @param startIdx   - start index
-     * @param endIdx     - endIdx
-     *
-     * @return - A method if found on <param>methodList</param> or else null if a method
-     *  given by name doesn't exist on methodList
-     *
-     *  @NOTE:
-     */
-    private static Method binarySearch(String methodName, List<Method> methodList, int startIdx, int endIdx) {
-
-        if(endIdx< startIdx){
-            return null;
-        }
-        int midIndex = (endIdx+startIdx)>> 1;
-        if(methodName.compareTo( methodList.get(midIndex).getName() ) == 0){
-            return methodList.get( midIndex );
-        }
-        else if(methodName.compareTo( methodList.get(midIndex).getName() ) < 0){
-            return binarySearch( methodName, methodList, startIdx, midIndex-1 );
-        }
-        else if(methodName.compareTo( methodList.get(midIndex).getName()) > 0){
-            return binarySearch(methodName, methodList, midIndex+1, endIdx);
-        }
-        return null;
-    }
 
 
     /**
@@ -326,7 +243,6 @@ public class ModelMapper{
             return (D) clone;
     }
 
-
     /**
      * Test if value is eligible to be assigned to the following field
      * @param dstField
@@ -336,23 +252,5 @@ public class ModelMapper{
     private static boolean objectIsEligibleToBeClonedAndAssignedToField(Field dstField, Object value) {
         return value!= null && value.getClass()== dstField.getType() || dstField.getType().isPrimitive();
     }
-
-
-    /**
-     * @param fields
-     * @return
-     *
-     *  that is passing through parameters
-     */
-    private static Collection<String> collectPropertyAccessorNamesFromMetaData(Collection<Field> fields) {
-
-        Collection<String>accessorNameList = new ArrayList<>();
-
-        for(Field currentField: fields){
-            accessorNameList.add( currentField.getAnnotation( Mappable.class ).methodName() );
-        }
-        return accessorNameList;
-    }
-
 
 }

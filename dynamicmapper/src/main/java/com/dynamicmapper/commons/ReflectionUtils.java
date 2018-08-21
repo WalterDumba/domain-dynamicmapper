@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
  * A little API for Reflection used in ModelMapper
  *
  * Authored by: Walter Dumba
+ *
  */
 public final class ReflectionUtils {
 
@@ -25,9 +26,14 @@ public final class ReflectionUtils {
     //Lazily initialized
     private static ReflectionUtils instance;
 
-
-
     private static final int CACHE_DEFAULT_CAPACITY = 100;
+
+    private static final Comparator<Method> COMPARE_METHOD_BY_NAME = new Comparator<Method>() {
+        @Override
+        public int compare(Method o1, Method o2) {
+            return o1.getName().compareTo(o2.getName());
+        }
+    };
 
 
     private ReflectionUtils(){
@@ -102,12 +108,40 @@ public final class ReflectionUtils {
         return getDeclaredFieldsAlongTheHierarchyOptionallyFilteringByAnnotationTypes(clazz, null);
     }
 
+
+    /**
+     * Walk into give class hierarchy and retrieve its declared methods as it go until reach
+     * object class
+     *
+     * This method uses cache to be fast on calls
+     *
+     * @param clazz
+     * @return - All Methods from this class and its ancestors
+     */
+    public static Collection<Method> getClazzDeclaredMethodsAlongTheHierarchy(Class<?> clazz) {
+
+        Collection<Method> collectedMethods = getInstance().cachedMethodsLRUCache.get( clazz );
+        if(collectedMethods == null){
+            collectedMethods = new ArrayList<>();
+            Class<?>clazzNode = clazz;
+            Class<?> root     = Object.class;
+            do{
+                collectedMethods.addAll( Arrays.asList( clazzNode.getDeclaredMethods() ) );
+                clazzNode = clazzNode.getSuperclass();
+            }while( clazzNode!=null && clazzNode!= root);
+
+            getInstance().cachedMethodsLRUCache.put( clazz, collectedMethods );
+        }
+        return collectedMethods;
+    }
     /**
      *
      * @param clazz
      * @param propertyInitializersNameList
      * @return
+     * @Deprecated note: Not used anymore
      */
+    @Deprecated
     public static List<Method> getMethodsByNameCriteria(Class<? extends Object> clazz, Collection<String> propertyInitializersNameList) {
 
         Collection<Method> clazzGettersForAnnotatedFields = getClazzDeclaredMethodsAlongTheHierarchy( clazz );
@@ -147,8 +181,44 @@ public final class ReflectionUtils {
         return classIsAWellKnownImmutableClassFromJDK( field.getType() );
     }
 
+    /**
+     * Lookup a method from a given targetClazz
+     *
+     * @param propertyAccessor
+     * @param targetClazz
+     * @return
+     *
+     */
+    public static Method lookupPropertyResolver(String propertyAccessor, Class<?> targetClazz){
+
+        List<Method> methodList;
+        if( !getInstance().cachedMethodsLRUCache.containsKey(targetClazz) ){
+            methodList = (List<Method>) ReflectionUtils.getClazzDeclaredMethodsAlongTheHierarchy( targetClazz );
+            Collections.sort(methodList, COMPARE_METHOD_BY_NAME);
+            getInstance().cachedMethodsLRUCache.put(targetClazz, methodList);
+        }
+        List<Method>targetClazzMethods = (List<Method>) getInstance().cachedMethodsLRUCache.get(targetClazz);
+        Method found = binarySearch(propertyAccessor, targetClazzMethods, 0, targetClazzMethods.size()-1);
+        return found;
+    }
 
 
+
+
+
+    /**
+     *
+     * @param underlyingObject
+     * @param target
+     * @return
+     */
+    public static Object invokeReflective(Object underlyingObject, Method target){
+        try {
+            return target.invoke(underlyingObject);
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            throw new RuntimeException( String.format("Error trying invoke method %s reflective", target ));
+        }
+    }
 
     /**======================================== PRIVATE PARTS ======================================================= **/
 
@@ -187,32 +257,6 @@ public final class ReflectionUtils {
     }
 
     /**
-     * Walk into give class hierarchy and retrieve its declared methods as it go until reach
-     * object class
-     *
-     * This method uses cache to be fast on calls
-     *
-     * @param clazz
-     * @return - All Methods from this class and its ancestors
-     */
-    private static Collection<Method> getClazzDeclaredMethodsAlongTheHierarchy(Class<?> clazz) {
-
-        Collection<Method> collectedMethods = getInstance().cachedMethodsLRUCache.get( clazz );
-        if(collectedMethods == null){
-            collectedMethods = new ArrayList<>();
-            Class<?>clazzNode = clazz;
-            Class<?> root     = Object.class;
-            do{
-                collectedMethods.addAll( Arrays.asList( clazzNode.getDeclaredMethods() ) );
-                clazzNode = clazzNode.getSuperclass();
-            }while( clazzNode!=null && clazzNode!= root);
-
-            getInstance().cachedMethodsLRUCache.put( clazz, collectedMethods );
-        }
-        return collectedMethods;
-    }
-
-    /**
      * Check if given clazz type is classic Immutable from JDK e.g: String, Number and Boolean
      *
      * @param clazz such clazz we are testing
@@ -225,6 +269,36 @@ public final class ReflectionUtils {
                 || Boolean.class.equals(clazz);
     }
 
+
+    /**
+     * Perform a binary search on given methodList
+     * @param methodName - Method which will searched for
+     * @param methodList - The target List holding methods which will be "binary searched"
+     * @param startIdx   - start index
+     * @param endIdx     - endIdx
+     *
+     * @return - A method if found on <param>methodList</param> or else null if a method
+     *  given by name doesn't exist on methodList
+     *
+     *  @NOTE:
+     */
+    private static Method binarySearch(String methodName, List<Method> methodList, int startIdx, int endIdx) {
+
+        if(endIdx< startIdx || methodList == null){
+            return null;
+        }
+        int midIndex = (endIdx+startIdx)>> 1;
+        if(methodName.compareTo( methodList.get(midIndex).getName() ) == 0){
+            return methodList.get( midIndex );
+        }
+        else if(methodName.compareTo( methodList.get(midIndex).getName() ) < 0){
+            return binarySearch( methodName, methodList, startIdx, midIndex-1 );
+        }
+        else if(methodName.compareTo( methodList.get(midIndex).getName()) > 0){
+            return binarySearch(methodName, methodList, midIndex+1, endIdx);
+        }
+        return null;
+    }
 
     /**===================================== CRITERIA FILTERS ==================================================== **/
 

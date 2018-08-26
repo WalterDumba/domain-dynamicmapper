@@ -1,12 +1,14 @@
 package com.dynamicmapper.mapper;
 
 import com.dynamicmapper.commons.CollectionFactory;
-import com.dynamicmapper.commons.LRUCache;
 import com.dynamicmapper.commons.ReflectionUtils;
 import com.dynamicmapper.exceptions.DeepCopyTypesMissMatchException;
-import com.dynamicmapper.mapper.policy.*;
+import com.dynamicmapper.mapper.policy.MappingManager;
+import com.dynamicmapper.mapper.policy.SystemLegacyMappingStrategy;
 
-import java.lang.reflect.*;
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.*;
 
 import static com.dynamicmapper.commons.ReflectionUtils.*;
@@ -14,30 +16,18 @@ import static com.dynamicmapper.commons.ReflectionUtils.*;
 
 /**
  *
- * A little API for mapping domain objects that's will save us a lot work as well as avoid
+ * A little API for mapping domain objects that's will save us a lot work as well as avoid verbosity
  *
- * such predictable boiler plate code you know...
- *
- *
- *
- *
- * Release future: Allowing as well doing mappings
- * using only getters and setters following java POJO standards
+ * and such boiler plate code we used to come across
  *
  * @authored by : walter.dumba
  *
  */
-public class ModelMapper{
+public final class ModelMapper{
 
 
 
-    @Deprecated
-    private static LRUCache<Class<?>, List<Method>> cachedMethodAccessorsLRUCache;
-    private static final int CACHE_CAPACITY = 100;
 
-    static {
-        cachedMethodAccessorsLRUCache = new LRUCache<>(CACHE_CAPACITY);
-    }
 
 
     /**
@@ -49,46 +39,6 @@ public class ModelMapper{
     public static <S, D> D map(S sourceObj, Class<D> dstClazz) {
 
         D dstObject = map( sourceObj, dstClazz, new HashMap<Integer, Object>() );
-        return dstObject;
-    }
-
-
-    /**
-     * Map an object to another object from different class
-     *
-     * @param sourceObj source object which we want to map to
-     * @param dstClazz  class of destiny object
-     * @param alreadyMappedObjects a variable that holds the tracking during the mapping to prevent infinite loop in mappings
-     * @param <S>
-     * @param <D>
-     * @return a mapped object from Class<D>
-     */
-    private static <S, D> D map(S sourceObj, Class<D> dstClazz, Map<Integer, Object> alreadyMappedObjects){
-
-        if(sourceObj == null || dstClazz == null){
-            return null;
-        }
-        //INTROSPECT DESTINY CLASS FIELDS TO FIGURE OUT WHICH MAPPING STRATEGY WILL BE USED
-        Collection<Field> dstAnnotatedFields = ReflectionUtils.getClazzFieldsAlongTheHierarchy( dstClazz );
-        D dstObject = newInstanceOf( dstClazz );
-        for(Field dstField: dstAnnotatedFields){
-
-            SystemLegacyMappingStrategy mapping = MappingManager.discovery( dstField );
-            mapping.setProvider( sourceObj );
-            Object value = mapping.resolve();
-            Object clone;
-            if( alreadyMappedObjects.get( Objects.hashCode(value) )!= null ){
-                continue;
-            }
-            if( objectIsEligibleToBeClonedAndAssignedToField(dstField, value) ){
-                clone = recursiveReflectiveDeepCopy( value, dstField.getType());
-            }
-            else{
-                alreadyMappedObjects.put(Objects.hashCode(value), value);
-                clone = map(value, dstField.getType(), alreadyMappedObjects);
-            }
-            setField( dstField, dstObject, clone );
-        }
         return dstObject;
     }
 
@@ -132,42 +82,45 @@ public class ModelMapper{
     /**############################################## PRIVATE PART  ################################################**/
 
 
+
     /**
+     * Map an object to another object from different class
      *
-     * Set the field value on underlyingObject
-     *
-     * @param field
-     * @param underlyingObject
-     * @param value
+     * @param sourceObj source object which we want to map to
+     * @param dstClazz  class of destiny object
+     * @param alreadyMappedObjects a variable that holds the tracking during the mapping to prevent infinite loop in mappings
+     * @param <S>
      * @param <D>
-     * TODO: catch IllegalArgumentException and rethrow IllegalPropertyValueException with a more descriptive message
+     * @return a mapped object from Class<D>
      */
-    private static <D> void setField(Field field, D underlyingObject, Object value) {
-        try {
-            field.setAccessible( true );
-            field.set(underlyingObject, value);
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(String.format("Error trying set field value reflective on object %s with value %s", underlyingObject, value));
-        }
-    }
+    private static <S, D> D map(S sourceObj, Class<D> dstClazz, Map<Integer, Object> alreadyMappedObjects){
 
-    /**
-     * Get the field value of underlyingObject
-     *
-     * @param field
-     * @param underlyingObject
-     * @return
-     */
-    private static Object getFieldValue(Field field, Object underlyingObject){
-        Object value;
-        try {
-            value = field.get(underlyingObject);
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(String.format("Error trying get field value reflective on object %s",underlyingObject));
+        if(sourceObj == null || dstClazz == null){
+            return null;
         }
-        return value;
-    }
+        //INTROSPECT DESTINY CLASS FIELDS TO FIGURE OUT WHICH MAPPING STRATEGY WILL BE USED
+        Collection<Field> dstAnnotatedFields = ReflectionUtils.getClazzFieldsAlongTheHierarchy( dstClazz );
+        D dstObject = newInstanceOf( dstClazz );
+        for(Field dstField: dstAnnotatedFields){
 
+            SystemLegacyMappingStrategy mapping = MappingManager.discovery( dstField );
+            mapping.setProvider( sourceObj );
+            Object value = mapping.resolve();
+            Object clone;
+            if( alreadyMappedObjects.get( Objects.hashCode(value) )!= null ){
+                continue;
+            }
+            if( objectIsEligibleToBeClonedAndAssignedToField(dstField, value) ){
+                clone = recursiveReflectiveDeepCopy( value, dstField.getType());
+            }
+            else{
+                alreadyMappedObjects.put(Objects.hashCode(value), value);
+                clone = map(value, dstField.getType(), alreadyMappedObjects);
+            }
+            setField( dstField, dstObject, clone );
+        }
+        return dstObject;
+    }
 
 
     /**
@@ -242,6 +195,45 @@ public class ModelMapper{
             }
             return (D) clone;
     }
+
+    /**
+     *
+     * Set the field value on underlyingObject
+     *
+     * @param field
+     * @param underlyingObject
+     * @param value
+     * @param <D>
+     * TODO: catch IllegalArgumentException and rethrow IllegalPropertyValueException with a more descriptive message
+     */
+    private static <D> void setField(Field field, D underlyingObject, Object value) {
+        try {
+            field.setAccessible( true );
+            field.set(underlyingObject, value);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(String.format("Error trying set field value reflective on object %s with value %s",
+                    underlyingObject, value));
+        }
+    }
+
+    /**
+     * Get the field value of underlyingObject
+     *
+     * @param field
+     * @param underlyingObject
+     * @return
+     */
+    private static Object getFieldValue(Field field, Object underlyingObject){
+        Object value;
+        try {
+            value = field.get(underlyingObject);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(String.format("Error trying get field value reflective on object %s",
+                    underlyingObject));
+        }
+        return value;
+    }
+
 
     /**
      * Test if value is eligible to be assigned to the following field

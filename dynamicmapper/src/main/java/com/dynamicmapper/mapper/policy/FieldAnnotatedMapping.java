@@ -12,7 +12,12 @@ public class FieldAnnotatedMapping implements SystemLegacyMappingStrategy {
 
     private Object provider;
     private Field target; //Might be Field Or Method it doesn't matter
-    Class<? extends Mappable> annotationClazz;
+    private Class<? extends Mappable> annotationClazz;
+
+
+    public FieldAnnotatedMapping() {
+        this(Mappable.class);
+    }
 
     public FieldAnnotatedMapping(Class<?extends Mappable> annotationClazz ) {
         this.annotationClazz = annotationClazz;
@@ -20,12 +25,8 @@ public class FieldAnnotatedMapping implements SystemLegacyMappingStrategy {
     @Override public void setProvider(Object provider) {
         this.provider = provider;
     }
-    @Override public void setTarget(Object obj) {
-
-        if(obj == null || !Field.class.isAssignableFrom(obj.getClass()) ){
-            throw new RuntimeException( String.format("Parameter is null or is not instance of Field") );
-        }
-        this.target = (Field) obj;
+    @Override public void setTarget(Field obj) {
+        this.target = obj;
     }
     @Override public Object resolve() {
         String methodNameToLookup = target.getAnnotation(annotationClazz).methodName();

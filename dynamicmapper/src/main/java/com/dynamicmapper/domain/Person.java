@@ -1,13 +1,18 @@
 package com.dynamicmapper.domain;
 
+import java.util.List;
+
 public class Person {
 
     private String name;
     private int age;
 
-
     private Person parent;
 
+    private Gender gender;
+    private Address address;
+
+    private List<Car> carList;
 
     public Person() {
     }
@@ -46,5 +51,29 @@ public class Person {
 
     public void setParent(Person parent) {
         this.parent = parent;
+    }
+
+    public Gender getGender() {
+        return gender;
+    }
+
+    public void setGender(Gender gender) {
+        this.gender = gender;
+    }
+
+    public Address getAddress() {
+        return address;
+    }
+
+    public void setAddress(Address address) {
+        this.address = address;
+    }
+
+    public List<Car> getCarList() {
+        return carList;
+    }
+
+    public void setCarList(List<Car> carList) {
+        this.carList = carList;
     }
 }

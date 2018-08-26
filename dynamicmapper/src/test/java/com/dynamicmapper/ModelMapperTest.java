@@ -32,7 +32,7 @@ public class ModelMapperTest {
 
 
     @Test
-    public void testSimpleObjectMapping(){
+    public void testSimpleObjectMappingAnnotationFieldStrategy(){
 
         Student s1 = createStudent();
         StudentVO vo = ModelMapper.map(s1, StudentVO.class);
@@ -40,15 +40,14 @@ public class ModelMapperTest {
     }
 
     @Test
-    public void testListOfComplexObjectMapping(){
+    public void testListOfComplexObjectMappingAnnotationFieldStrategy(){
 
         Student s1 = createStudent();
         Student s2 = createStudent();
         s2.setName("Jane Doe");
 
         List<Student> studentList = Arrays.asList(s1, s2);
-        List<StudentVO> studentListVO = null;
-            studentListVO = ModelMapper.mapList(studentList, StudentVO.class);
+        List<StudentVO> studentListVO = ModelMapper.mapList(studentList, StudentVO.class);
 
         Assert.assertTrue(studentListVO!= null && studentListVO.size()==2);
     }
@@ -57,7 +56,6 @@ public class ModelMapperTest {
     @Test
     public void testCyclicReferenceOnMappingAndPass(){
 
-
         Person p1 = createPerson();
         p1.setParent(p1);
         PersonVO pvo = ModelMapper.map(p1,  PersonVO.class);
@@ -65,9 +63,8 @@ public class ModelMapperTest {
     }
 
 
-
     @Test
-    public void testMappingWithAgregationAndPass(){
+    public void testMappingWithAgregationAnnotationFieldMappingStrategyAndPass(){
 
         Person p1 = createPerson();
         p1.setParent(createPerson());
@@ -76,7 +73,38 @@ public class ModelMapperTest {
     }
 
 
+    @Test
+    public void testMappingPropertyAccessorStrategyAndPass(){
 
+        Teacher teacher = createTeacher();
+        TeacherVO teacherVO = ModelMapper.map(teacher, TeacherVO.class);
+        Assert.assertTrue(teacherVO!= null);
+    }
+
+    @Test
+    public void testMappingPropertyAccessorWithNonPurePojoObjectAndPass(){
+
+        BMW bmwI8 = new BMW("BMW","i8","xxx");
+        BMWVO vo      = ModelMapper.map(bmwI8, BMWVO.class);
+        Assert.assertTrue(vo!= null);
+    }
+
+
+    @Test
+    public void testMappingUsingMixedStrategyAndPass(){
+
+        Person p = createPerson();
+        p.setAddress(new Address("London Road",91,"HLY25"));
+        p.setGender(Gender.FEMALE);
+        p.setCarList(Arrays.asList(
+                new Car[]{new BMW("BMW","i3","XXX"),
+                        new BMW("BMW","i8","YYY")
+                }));
+
+        PersonVO p2 = ModelMapper.map(p, PersonVO.class);
+
+        Assert.assertTrue(p2!=null);
+    }
 
     private static Student createStudent() {
         Student s1 = new Student();
@@ -95,6 +123,9 @@ public class ModelMapperTest {
         return new Person("Jane Doe", 27);
     }
 
+    private static Teacher createTeacher(){
+        return new Teacher("John Doe",42,new String[]{"Electronics, Embedded Systems"}, "Master");
+    }
 
 
 }

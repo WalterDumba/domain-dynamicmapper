@@ -2,6 +2,8 @@ package com.dynamicmapper.domain;
 
 import com.dynamicmapper.commons.Mappable;
 
+import java.util.List;
+
 public class PersonVO{
 
 
@@ -12,6 +14,10 @@ public class PersonVO{
 
     @Mappable(methodName = "getParent")
     private PersonVO parent;
+
+    private Gender gender;
+    private Address address;
+    private List<Car> carList;
 
 
     public String getFirstName() {
@@ -36,5 +42,29 @@ public class PersonVO{
 
     public void setParent(PersonVO parent) {
         this.parent = parent;
+    }
+
+    public Gender getGender() {
+        return gender;
+    }
+
+    public void setGender(Gender gender) {
+        this.gender = gender;
+    }
+
+    public Address getAddress() {
+        return address;
+    }
+
+    public void setAddress(Address address) {
+        this.address = address;
+    }
+
+    public List<Car> getCarList() {
+        return carList;
+    }
+
+    public void setCarList(List<Car> carList) {
+        this.carList = carList;
     }
 }

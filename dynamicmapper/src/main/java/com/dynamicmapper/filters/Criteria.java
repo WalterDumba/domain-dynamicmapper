@@ -1,6 +1,7 @@
 package com.dynamicmapper.filters;
 
 import java.util.Collection;
+import java.util.List;
 
 /**
  * A common interface for filters used on ModelMapper
@@ -10,5 +11,5 @@ import java.util.Collection;
 
 public interface Criteria<T>{
 
-    Collection<T> meetCriteria(Collection<T> items);
+    List<T> meetCriteria(List<T> items);
 }

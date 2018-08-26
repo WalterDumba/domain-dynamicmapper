@@ -5,6 +5,13 @@ public class Teacher extends Person {
     private String[] classes;
     private String degree;
 
+
+    public Teacher(String name, int age, String[] classes, String degree) {
+        super(name, age);
+        this.classes = classes;
+        this.degree = degree;
+    }
+
     public String[] getClasses() {
         return classes;
     }

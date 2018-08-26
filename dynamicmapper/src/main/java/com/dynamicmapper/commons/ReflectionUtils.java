@@ -20,8 +20,8 @@ public final class ReflectionUtils {
 
 
     //LRU Caches
-    private LRUCache< Class<?>, Collection<Field>  > cachedFieldsLRUCache;
-    private LRUCache< Class<?>, Collection<Method> > cachedMethodsLRUCache;
+    private LRUCache< Class<?>, List<Field>  > cachedFieldsLRUCache;
+    private LRUCache< Class<?>, List<Method> > cachedMethodsLRUCache;
 
     //Lazily initialized
     private static ReflectionUtils instance;
@@ -68,6 +68,8 @@ public final class ReflectionUtils {
      * @param clazz
      * @param <D>
      * @return
+     *
+     * FIXME: when clazz is an Enum things doesn't goes well
      */
     public static <D> D newInstanceOf(Class<D> clazz){
         Constructor<D> c;
@@ -92,20 +94,20 @@ public final class ReflectionUtils {
      * @param <T>
      * @return
      */
-    public static <T>Collection<Field> getDeclaredFieldsAnnotatedWithTraversingClazzHierarchy(Class<?> clazz, Class<? extends Annotation>annotationToScan){
-        return getDeclaredFieldsAlongTheHierarchyOptionallyFilteringByAnnotationTypes(clazz, annotationToScan);
+    public static <T>List<Field> getDeclaredFieldsAnnotatedWithTraversingClazzHierarchy(Class<?> clazz, Class<? extends Annotation>annotationToScan){
+        return getDeclaredFieldsAlongTheHierarchyOptionallyFilteringByCriteria(clazz, new FieldAnnotationCriteria(annotationToScan));
     }
 
     /**
      *
      * @param clazz
      *
-     * @see #getDeclaredFieldsAlongTheHierarchyOptionallyFilteringByAnnotationTypes(Class, Class[])
+     * @see #getDeclaredFieldsAlongTheHierarchyOptionallyFilteringByCriteria(Class, Criteria[])
      *
      * @return
      */
-    public static Collection<Field> getClazzFieldsAlongTheHierarchy(Class<?>clazz){
-        return getDeclaredFieldsAlongTheHierarchyOptionallyFilteringByAnnotationTypes(clazz, null);
+    public static List<Field> getClazzFieldsAlongTheHierarchy(Class<?>clazz){
+        return getDeclaredFieldsAlongTheHierarchyOptionallyFilteringByCriteria(clazz, null);
     }
 
 
@@ -118,9 +120,9 @@ public final class ReflectionUtils {
      * @param clazz
      * @return - All Methods from this class and its ancestors
      */
-    public static Collection<Method> getClazzDeclaredMethodsAlongTheHierarchy(Class<?> clazz) {
+    public static List<Method> getClazzDeclaredMethodsAlongTheHierarchy(Class<?> clazz) {
 
-        Collection<Method> collectedMethods = getInstance().cachedMethodsLRUCache.get( clazz );
+        List<Method> collectedMethods = getInstance().cachedMethodsLRUCache.get( clazz );
         if(collectedMethods == null){
             collectedMethods = new ArrayList<>();
             Class<?>clazzNode = clazz;
@@ -133,27 +135,6 @@ public final class ReflectionUtils {
             getInstance().cachedMethodsLRUCache.put( clazz, collectedMethods );
         }
         return collectedMethods;
-    }
-    /**
-     *
-     * @param clazz
-     * @param propertyInitializersNameList
-     * @return
-     * @Deprecated note: Not used anymore
-     */
-    @Deprecated
-    public static List<Method> getMethodsByNameCriteria(Class<? extends Object> clazz, Collection<String> propertyInitializersNameList) {
-
-        Collection<Method> clazzGettersForAnnotatedFields = getClazzDeclaredMethodsAlongTheHierarchy( clazz );
-        PropertyAccessorByNameCriteria propertyAccessorByNameCriteria = new PropertyAccessorByNameCriteria(
-                new MethodGetterCriteria(),
-                propertyInitializersNameList
-        );
-        clazzGettersForAnnotatedFields = propertyAccessorByNameCriteria.meetCriteria(clazzGettersForAnnotatedFields);
-        if(clazzGettersForAnnotatedFields.size()!= propertyInitializersNameList.size()){
-            throw new RuntimeException("Not all methods were found during methods collection phase");
-        }
-        return (List<Method>) clazzGettersForAnnotatedFields;
     }
 
     /**
@@ -193,15 +174,24 @@ public final class ReflectionUtils {
 
         List<Method> methodList;
         if( !getInstance().cachedMethodsLRUCache.containsKey(targetClazz) ){
-            methodList = (List<Method>) ReflectionUtils.getClazzDeclaredMethodsAlongTheHierarchy( targetClazz );
+            methodList = ReflectionUtils.getClazzDeclaredMethodsAlongTheHierarchy( targetClazz );
             Collections.sort(methodList, COMPARE_METHOD_BY_NAME);
             getInstance().cachedMethodsLRUCache.put(targetClazz, methodList);
         }
-        List<Method>targetClazzMethods = (List<Method>) getInstance().cachedMethodsLRUCache.get(targetClazz);
+        List<Method>targetClazzMethods = getInstance().cachedMethodsLRUCache.get(targetClazz);
         Method found = binarySearch(propertyAccessor, targetClazzMethods, 0, targetClazzMethods.size()-1);
         return found;
     }
 
+    /**
+     *
+     * @param propertyAccessor
+     * @param methodList
+     * @return
+     */
+    public static Method lookupPropertyResolver(String propertyAccessor, List<Method> methodList){
+        return binarySearch(propertyAccessor,methodList, 0, methodList.size()-1);
+    }
 
 
 
@@ -220,20 +210,40 @@ public final class ReflectionUtils {
         }
     }
 
+    /**
+     * Get all getters from the given class
+     *
+     * @param clazz
+     * @param regex
+     * @return
+     */
+    public static List<Method> gettersOf(Class<?> clazz, final String regex){
+
+        Criteria<Method>filterByGettersWhoseName = new MethodDecoratorCriteria( new MethodGetterCriteria() ){
+            @Override
+            public List<Method> meetCriteria(List<Method> items) {
+                MethodNamePatternCriteria decoratee = new MethodNamePatternCriteria(Pattern.compile(regex));
+                List<Method> preFiltered = super.meetCriteria(items);
+                return decoratee.meetCriteria( preFiltered );
+            }
+        };
+        return filterByGettersWhoseName.meetCriteria( getClazzDeclaredMethodsAlongTheHierarchy(clazz) );
+    }
+
     /**======================================== PRIVATE PARTS ======================================================= **/
 
     /**
      *
      * @param clazz
-     * @param annotationsToScan
+     * @param criterias
      * @return
      */
-    private static Collection<Field> getDeclaredFieldsAlongTheHierarchyOptionallyFilteringByAnnotationTypes(Class<?>clazz, Class<?extends Annotation>...annotationsToScan){
+    private static List<Field> getDeclaredFieldsAlongTheHierarchyOptionallyFilteringByCriteria(Class<?>clazz, Criteria<?>...criterias){
 
         if(clazz == null){
             return Collections.emptyList();
         }
-        Collection<Field> collectedFields = getInstance().cachedFieldsLRUCache.get( clazz );
+        List<Field> collectedFields = getInstance().cachedFieldsLRUCache.get( clazz );
         boolean notAlreadyCached = collectedFields == null;
         Class depth = Object.class;
         if( notAlreadyCached ){
@@ -248,12 +258,11 @@ public final class ReflectionUtils {
             getInstance().cachedFieldsLRUCache.put( clazz, collectedFields);
         }
         //Check if caller want us to filter by annotations
-        if(annotationsToScan!=null && annotationsToScan.length > 0){
-            return new FieldAnnotationCriteria(annotationsToScan).meetCriteria(collectedFields);
+        if(criterias!=null && criterias.length > 0){
+            for(Criteria curr: criterias)
+                collectedFields = curr.meetCriteria(collectedFields);
         }
-        else{
-            return collectedFields;
-        }
+        return collectedFields;
     }
 
     /**
@@ -312,7 +321,7 @@ public final class ReflectionUtils {
             this.delegate = delegate;
         }
         @Override
-        public Collection<Method> meetCriteria(Collection<Method> items) {
+        public List<Method> meetCriteria(List<Method> items) {
             return this.delegate.meetCriteria(items);
         }
     }
@@ -326,8 +335,8 @@ public final class ReflectionUtils {
         }
 
         @Override
-        public Collection<Method> meetCriteria(Collection<Method> items) {
-            Collection<Method> filteredResult = items;
+        public List<Method> meetCriteria(List<Method> items) {
+            List<Method> filteredResult = items;
             for(Criteria<Method>currentCriteria: criteriaChildren){
                 filteredResult = currentCriteria.meetCriteria(filteredResult);
             }
@@ -346,12 +355,12 @@ public final class ReflectionUtils {
         }
 
         @Override
-        public Collection<Method> meetCriteria(Collection<Method> items) {
+        public List<Method> meetCriteria(List<Method> items) {
 
             if(methodPattern==null){
                 throw new RuntimeException("methodPattern not initialized");
             }
-            Collection<Method> filtered = new ArrayList<>();
+            List<Method> filtered = new ArrayList<>();
             for(Method curr: items){
                 if( methodPattern.matcher(curr.getName()).find()){
                     filtered.add(curr);
@@ -360,20 +369,38 @@ public final class ReflectionUtils {
             return filtered;
         }
     }
+
     static class MethodGetterCriteria extends MethodCompoundCriteria{
 
+        private static final String METHOD_REGEX ="get[A-Za-z0-9]+|is[A-Za-z0-9]+";
+
         public MethodGetterCriteria() {
-            super(  new MethodNamePatternCriteria(Pattern.compile("get[A-Za-z0-9]+|is[A-Za-z0-9]+")),
-                    new MethodModifiersCriteria(Modifier.PUBLIC));
+            super(new MethodNamePatternCriteria(Pattern.compile(METHOD_REGEX)),
+                    new MethodModifiersCriteria(Modifier.PUBLIC),
+                    new Criteria<Method>() {
+                        @Override public List<Method> meetCriteria(List<Method> items) {
+                            List<Method> methodsWithNoArgs= new ArrayList<>();
+                            for(Method curr: items){
+                                if(curr.getParameterTypes().length==0){
+                                    methodsWithNoArgs.add(curr);
+                                }
+                            }
+                            return methodsWithNoArgs;
+                        }
+                    }
+            );
         }
     }
     static class MethodSetterCriteria extends  MethodCompoundCriteria{
 
+        private static final String METHOD_REGEX ="set[A-Za-z0-9]+";
+
         public MethodSetterCriteria() {
-            super(new MethodNamePatternCriteria(Pattern.compile("set[A-Za-z0-9]+")),
+            super(new MethodNamePatternCriteria(Pattern.compile(METHOD_REGEX)),
                     new MethodModifiersCriteria(Modifier.PUBLIC));
         }
     }
+
     static class MethodModifiersCriteria implements Criteria<Method>{
 
         int methodModifiers;
@@ -381,8 +408,8 @@ public final class ReflectionUtils {
             this.methodModifiers = methodModifiers;
         }
         @Override
-        public Collection<Method> meetCriteria(Collection<Method> items) {
-            Collection<Method> filtered= new ArrayList<>();
+        public List<Method> meetCriteria(List<Method> items) {
+            List<Method> filtered= new ArrayList<>();
             for(Method curr: items){
                 if(curr.getModifiers() == methodModifiers){
                     filtered.add(curr);
@@ -391,30 +418,7 @@ public final class ReflectionUtils {
             return filtered;
         }
     }
-    static class PropertyAccessorByNameCriteria extends MethodDecoratorCriteria{
 
-        private String methodsNamesOrExpression;
-
-        public PropertyAccessorByNameCriteria(Criteria<Method> delegate, Collection<String> accessorNameList) {
-            super(delegate);
-
-            StringBuilder methodsNameRegex = new StringBuilder();
-            for( String currMethodName: accessorNameList ){
-                methodsNameRegex.append(currMethodName).append("|");
-            }
-            methodsNameRegex.deleteCharAt( methodsNameRegex.length()-1 );
-            this.methodsNamesOrExpression =  methodsNameRegex.toString();
-        }
-        @Override
-        public Collection<Method> meetCriteria(Collection<Method> items) {
-            Collection<Method>preFiltered = super.meetCriteria(items);
-            MethodNamePatternCriteria methodNamesCriteria = new MethodNamePatternCriteria(
-                    Pattern.compile(this.methodsNamesOrExpression)
-            );
-            return methodNamesCriteria.meetCriteria(preFiltered);
-        }
-
-    }
     static class FieldAnnotationCriteria implements Criteria<Field>{
 
         private List<Class<? extends Annotation>> annotations;
@@ -423,9 +427,9 @@ public final class ReflectionUtils {
             this.annotations = Arrays.asList(annotations);
         }
         @Override
-        public Collection<Field> meetCriteria(Collection<Field> items) {
+        public List<Field> meetCriteria(List<Field> items) {
 
-            Collection<Field> filtered = new ArrayList<>();
+            List<Field> filtered = new ArrayList<>();
             for(Field currField: items){
                 for(Annotation fieldAnnotation: currField.getDeclaredAnnotations()){
                     if(annotations.contains( fieldAnnotation.annotationType() ) ){
@@ -437,5 +441,4 @@ public final class ReflectionUtils {
             return filtered;
         }
     }
-
 }

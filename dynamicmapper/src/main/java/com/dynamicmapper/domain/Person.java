@@ -12,7 +12,7 @@ public class Person {
     private Gender gender;
     private Address address;
 
-    private List<Car> carList;
+    private List<CarVO> carVOList;
 
     public Person() {
     }
@@ -69,11 +69,11 @@ public class Person {
         this.address = address;
     }
 
-    public List<Car> getCarList() {
-        return carList;
+    public List<CarVO> getCarVOList() {
+        return carVOList;
     }
 
-    public void setCarList(List<Car> carList) {
-        this.carList = carList;
+    public void setCarVOList(List<CarVO> carVOList) {
+        this.carVOList = carVOList;
     }
 }

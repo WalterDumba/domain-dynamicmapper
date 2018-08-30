@@ -84,8 +84,8 @@ public class ModelMapperTest {
     @Test
     public void testMappingPropertyAccessorWithNonPurePojoObjectAndPass(){
 
-        BMW bmwI8 = new BMW("BMW","i8","xxx");
-        BMWVO vo      = ModelMapper.map(bmwI8, BMWVO.class);
+        BMWVO bmwI8 = new BMWVO("BMWVO","i8","xxx");
+        BMW vo      = ModelMapper.map(bmwI8, BMW.class);
         Assert.assertTrue(vo!= null);
     }
 
@@ -96,13 +96,11 @@ public class ModelMapperTest {
         Person p = createPerson();
         p.setAddress(new Address("London Road",91,"HLY25"));
         p.setGender(Gender.FEMALE);
-        p.setCarList(Arrays.asList(
-                new Car[]{new BMW("BMW","i3","XXX"),
-                        new BMW("BMW","i8","YYY")
+        p.setCarVOList(Arrays.asList(
+                new CarVO[]{new BMWVO("BMWVO","i3","XXX"),
+                        new BMWVO("BMWVO","i8","YYY")
                 }));
-
         PersonVO p2 = ModelMapper.map(p, PersonVO.class);
-
         Assert.assertTrue(p2!=null);
     }
 

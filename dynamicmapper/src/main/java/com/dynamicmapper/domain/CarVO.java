@@ -4,14 +4,14 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
-public abstract class Car implements Serializable {
+public abstract class CarVO implements Serializable {
 
     protected Map<String, Object> properties = new HashMap<>();
 
     private String BRAND ="brand";
     private String MODEL ="model";
 
-    protected Car(String brand, String model){
+    protected CarVO(String brand, String model){
        this.setProperty(BRAND, brand);
        this.setProperty(MODEL, model);
     }

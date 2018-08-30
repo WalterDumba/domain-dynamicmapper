@@ -18,11 +18,15 @@ public class CollectionFactory {
 
     enum FrameWorkSupportedTypesEnum {
 
-        SET("java.util.Set",                    HashSet.class       ),
-        COLLECTION("java.util.Collection",      ArrayList.class     ),
-        ARRAYLIST("java.util.Arrays.ArrayList", ArrayList.class     ),
-        LINKEDLIST("java.util.LinkedList",      LinkedList.class    ),
-        HASHSET("java.util.HashSet",            HashSet.class       );
+        SET(Set.class.getName(),                HashSet.class        ),
+        COLLECTION(Collection.class.getName(),  ArrayList.class      ),
+        LIST(List.class.getName(),              ArrayList.class      ),
+        ARRAYLIST("java.util.Arrays.ArrayList", ArrayList.class      ),//The special one
+        LINKEDLIST(LinkedList.class.getName(),  LinkedList.class     ),
+        HASHSET(HashSet.class.getName(),        HashSet.class        ),
+        MAP(Map.class.getName(),                HashMap.class        ),
+        HASHMAP(HashMap.class.getName(),        HashMap.class        ),
+        HASHTABLE(Hashtable.class.getName(),    Hashtable.class      );
 
         private final String className;
         private final Class<?> type;
@@ -64,7 +68,7 @@ public class CollectionFactory {
         } catch (NoSuchMethodException | IllegalAccessException |
                 InstantiationException | InvocationTargetException e) {
             throw new RuntimeException(String
-                    .format("Cannot instantiate reflective object from class %s: No default constructor provided",
+                    .format("Cannot instantiate reflective object from class %s: type not supported",
                             clazzName));
         }
     }

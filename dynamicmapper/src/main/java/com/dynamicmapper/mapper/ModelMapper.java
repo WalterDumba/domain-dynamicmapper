@@ -139,7 +139,6 @@ public final class ModelMapper{
      */
     private static <S,D> D recursiveReflectiveDeepCopy(S srcObj, Class<D> dstClazz ) throws DeepCopyTypesMissMatchException {
 
-
             if(srcObj == null){
                 return null;
             }
@@ -148,7 +147,6 @@ public final class ModelMapper{
             }
             Object clone;
             Class objClazz = dstClazz;
-
             //ARRAY TYPES
             if( srcObj.getClass().isArray() ){
                 clone = Array.newInstance( srcObj.getClass().getComponentType(), Array.getLength(srcObj) );
@@ -159,19 +157,30 @@ public final class ModelMapper{
                 }
             }
             //COLLECTION TYPES
-            else if(Collection.class.isAssignableFrom( srcObj.getClass() )){
+            else if( Collection.class.isAssignableFrom( srcObj.getClass() ) ){
                 Collection<?> collection = (Collection<?>) srcObj;
                 Collection temp = (Collection<?>) CollectionFactory.newInstanceOf( srcObj.getClass().getCanonicalName() );
                 for(Object curr: collection){
                     Object currCloned = recursiveReflectiveDeepCopy( curr, curr.getClass() );
-                    temp.add(currCloned);
+                    temp.add( currCloned );
                 }
                 clone = temp;
                 objClazz = null;
             }
-
+            else if( Map.class.isAssignableFrom( srcObj.getClass() ) ){
+                Map<?,?> srcMap  = (Map<?, ?>) srcObj;
+                Map hashMap = CollectionFactory.newInstanceOf(srcObj.getClass().getName());
+                for(Map.Entry currEntry: srcMap.entrySet()){
+                    Object srcMapKey    = recursiveReflectiveDeepCopy(currEntry.getKey(),
+                            currEntry.getKey().getClass()  );
+                    Object srcMapValue  = recursiveReflectiveDeepCopy(currEntry.getKey(),
+                            currEntry.getValue().getClass());
+                    hashMap.put(srcMapKey, srcMapValue);
+                }
+                clone = hashMap;
+            }
             else {
-                clone = newInstanceOf( dstClazz );
+                clone = Enum.class.isAssignableFrom(dstClazz)? srcObj: newInstanceOf( dstClazz );
             }
             //Case: We want assure we are copying objects from the same class so...
             if(srcObj.getClass() == dstClazz){
@@ -242,7 +251,10 @@ public final class ModelMapper{
      * @return
      */
     private static boolean objectIsEligibleToBeClonedAndAssignedToField(Field dstField, Object value) {
-        return value!= null && value.getClass()== dstField.getType() || dstField.getType().isPrimitive();
+        return (value!= null && value.getClass()== dstField.getType())
+                || (dstField.getType().isPrimitive())
+                || (Collection.class.isAssignableFrom(dstField.getType()))
+                || (Collection.class.isAssignableFrom(dstField.getType()));
     }
 
 }

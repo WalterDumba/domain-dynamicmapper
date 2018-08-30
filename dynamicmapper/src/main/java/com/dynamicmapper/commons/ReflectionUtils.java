@@ -95,19 +95,19 @@ public final class ReflectionUtils {
      * @return
      */
     public static <T>List<Field> getDeclaredFieldsAnnotatedWithTraversingClazzHierarchy(Class<?> clazz, Class<? extends Annotation>annotationToScan){
-        return getDeclaredFieldsAlongTheHierarchyOptionallyFilteringByCriteria(clazz, new FieldAnnotationCriteria(annotationToScan));
+        return getDeclaredFieldsAlongTheHierarchyFilteringByCriteria(clazz, new FieldAnnotationCriteria(annotationToScan));
     }
 
     /**
      *
      * @param clazz
      *
-     * @see #getDeclaredFieldsAlongTheHierarchyOptionallyFilteringByCriteria(Class, Criteria[])
+     * @see #getDeclaredFieldsAlongTheHierarchyFilteringByCriteria(Class, Criteria[])
      *
      * @return
      */
     public static List<Field> getClazzFieldsAlongTheHierarchy(Class<?>clazz){
-        return getDeclaredFieldsAlongTheHierarchyOptionallyFilteringByCriteria(clazz, null);
+        return getDeclaredFieldsAlongTheHierarchyFilteringByCriteria(clazz, null);
     }
 
 
@@ -146,7 +146,7 @@ public final class ReflectionUtils {
      * @return
      */
     public static boolean objectClassIsAwellKnownImmutableClassFromJDK(Object obj) {
-        return obj!= null && classIsAWellKnownImmutableClassFromJDK( obj.getClass() );
+        return classIsAWellKnownImmutableClassFromJDK( obj.getClass() );
     }
 
 
@@ -203,6 +203,9 @@ public final class ReflectionUtils {
      * @return
      */
     public static Object invokeReflective(Object underlyingObject, Method target){
+        if( target == null || underlyingObject == null){
+            return null;
+        }
         try {
             return target.invoke(underlyingObject);
         } catch (IllegalAccessException | InvocationTargetException e) {
@@ -238,7 +241,7 @@ public final class ReflectionUtils {
      * @param criterias
      * @return
      */
-    private static List<Field> getDeclaredFieldsAlongTheHierarchyOptionallyFilteringByCriteria(Class<?>clazz, Criteria<?>...criterias){
+    private static List<Field> getDeclaredFieldsAlongTheHierarchyFilteringByCriteria(Class<?>clazz, Criteria<?>...criterias){
 
         if(clazz == null){
             return Collections.emptyList();
@@ -272,10 +275,11 @@ public final class ReflectionUtils {
      * @return true if a class is a PrimitiveType Wrapper, String, a Number or Boolean
      */
     private static boolean classIsAWellKnownImmutableClassFromJDK(Class clazz){
-        return clazz.isPrimitive()
+        return clazz!=null &&
+                ( clazz.isPrimitive()
                 || String.class.equals(clazz)
                 || Number.class.equals(clazz.getSuperclass())
-                || Boolean.class.equals(clazz);
+                || Boolean.class.equals(clazz));
     }
 
 

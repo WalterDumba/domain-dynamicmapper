@@ -1,27 +1,34 @@
 package com.dynamicmapper.domain;
 
-public class BMW extends Car {
+public class BMW {
 
 
-    private String SERIE="serie";
+    private String brand;
+    private String model;
+    private String serie;
 
 
-
-    public BMW(String brand, String model) {
-        super(brand, model);
+    public String getBrand() {
+        return brand;
     }
 
-    public BMW(String brand, String model, String serie) {
-        super(brand, model);
-        this.setProperty(SERIE, serie);
-    }
-    public void setSerie(String serie){
-        setProperty(SERIE, serie);
+    public void setBrand(String brand) {
+        this.brand = brand;
     }
 
-    public String getSerie(){
-        return (String) getProperty(SERIE);
+    public String getModel() {
+        return model;
     }
 
+    public void setModel(String model) {
+        this.model = model;
+    }
 
+    public String getSerie() {
+        return serie;
+    }
+
+    public void setSerie(String serie) {
+        this.serie = serie;
+    }
 }

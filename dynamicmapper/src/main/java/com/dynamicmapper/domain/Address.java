@@ -7,6 +7,9 @@ public class Address {
     private String zipCode;
 
 
+    public Address() {
+    }
+
     public Address(String description, int number, String zipCode) {
         this.description = description;
         this.number = number;

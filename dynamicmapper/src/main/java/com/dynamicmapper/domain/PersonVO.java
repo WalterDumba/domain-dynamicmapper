@@ -17,7 +17,9 @@ public class PersonVO{
 
     private Gender gender;
     private Address address;
-    private List<Car> carList;
+    private List<BMW> carList;
+
+    private CarVO[] favorites;
 
 
     public String getFirstName() {
@@ -60,11 +62,11 @@ public class PersonVO{
         this.address = address;
     }
 
-    public List<Car> getCarList() {
+    public List<BMW> getCarList() {
         return carList;
     }
 
-    public void setCarList(List<Car> carList) {
+    public void setCarList(List<BMW> carList) {
         this.carList = carList;
     }
 }

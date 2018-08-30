@@ -1,34 +1,30 @@
 package com.dynamicmapper.domain;
 
-public class BMWVO {
+public class BMWVO extends CarVO {
 
 
-    private String brand;
-    private String model;
-    private String serie;
+    private String SERIE="serie";
 
 
-    public String getBrand() {
-        return brand;
+    public BMWVO(){
+        super(null,null);
     }
 
-    public void setBrand(String brand) {
-        this.brand = brand;
+    public BMWVO(String brand, String model) {
+        super(brand, model);
     }
 
-    public String getModel() {
-        return model;
+    public BMWVO(String brand, String model, String serie) {
+        super(brand, model);
+        this.setProperty(SERIE, serie);
+    }
+    public void setSerie(String serie){
+        setProperty(SERIE, serie);
     }
 
-    public void setModel(String model) {
-        this.model = model;
+    public String getSerie(){
+        return (String) getProperty(SERIE);
     }
 
-    public String getSerie() {
-        return serie;
-    }
 
-    public void setSerie(String serie) {
-        this.serie = serie;
-    }
 }
